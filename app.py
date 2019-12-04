@@ -1,3 +1,4 @@
+# importing the necessary libraries
 from flask import Flask, request
 import json
 import requests
@@ -6,16 +7,20 @@ import os
 import praw
 
 app = Flask(__name__)
+
+# Initializing SQL Database
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
 db = SQLAlchemy(app)
+
+# Reddit's python library Praw to access reddit and subreddits.
 reddit = praw.Reddit(client_id='****',
                      client_secret='****',
                      user_agent='my user agent')
 
-# This needs to be filled with the Page Access Token that will be provided
-# by the Facebook App that will be created.
+# Page Access Token (PAT) provided by Facebook App when created.
 PAT = ''
 
+# Facebook API's quick replies feature in messenger chat being displayed as buttons of "title".
 quick_replies_list = [
     {
         "content_type": "text",
@@ -40,6 +45,7 @@ quick_replies_list = [
 ]
 
 
+# Handles GET requests to Facebook bot,
 @app.route('/', methods=['GET'])
 def handle_verification():
     print("Handling Verification.")
@@ -51,6 +57,7 @@ def handle_verification():
         return 'Error, wrong validation token'
 
 
+# Handles POST requests to Fb bot, using messaging_events function to extract user sender ID and message sent.
 @app.route('/', methods=['POST'])
 def handle_messages():
     print("Handling Messages")
@@ -61,7 +68,7 @@ def handle_messages():
         send_message(PAT, sender, message)
     return "ok"
 
-
+# Function breaks down message payload to extract user ID and message(or messages since user can send multiple messages)
 def messaging_events(payload):
     """Generate tuples of (sender_id, message_text) from the
     provided payload.
@@ -77,6 +84,9 @@ def messaging_events(payload):
 
 def send_message(token, recipient, text):
     """Send the message text to recipient with id recipient.
+       When the subreddit is required by the user on Facebook messenger, API will access Reddit and taking the current
+       trending post in the subreddit whereby the post's unique ID and reddit user will be stored in the database
+       to prevent re-sending of the same current trending post.
     """
     if b"meme" in text.lower():
         subreddit_name = "memes"
@@ -190,6 +200,7 @@ def send_message(token, recipient, text):
         print(r.text)
 
 
+# Creates user if user doesn't exist and returns it, if user exists then returns user.
 def get_or_create(session, model, **kwargs):
     instance = session.query(model).filter_by(**kwargs).first()
     if instance:
@@ -200,13 +211,13 @@ def get_or_create(session, model, **kwargs):
         session.commit()
         return instance
 
-
+# Relationship table
 relationship_table = db.Table('relationship_table',
                               db.Column('user_id', db.Integer, db.ForeignKey('users.id'), nullable=False),
                               db.Column('post_id', db.Integer, db.ForeignKey('posts.id'), nullable=False),
                               db.PrimaryKeyConstraint('user_id', 'post_id'))
 
-
+# Users and Posts, to make sure chatbot doesn't send the same post
 class Users(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
